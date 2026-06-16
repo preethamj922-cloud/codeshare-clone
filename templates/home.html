@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeShare - Real-time Collaborative Code Editor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="home-body">
+  <div class="home-container">
+    <div class="logo">
+      <span class="logo-icon">&lt;/&gt;</span>
+      <h1>CodeShare</h1>
+    </div>
+    <p class="tagline">Real-time collaborative code editor. No sign-up required.</p>
+
+    {% if error %}
+    <div class="error-banner">{{ error }}</div>
+    {% endif %}
+
+    <form id="room-form" class="room-form" autocomplete="off">
+      <input
+        type="text"
+        id="room-input"
+        name="room"
+        placeholder="Enter a room name (e.g. python-class)"
+        maxlength="50"
+        required
+      >
+      <button type="submit">Go &rarr;</button>
+    </form>
+    <p class="hint">Only letters, numbers, hyphens and underscores allowed (max 50 characters).</p>
+
+    <div class="divider"><span>or</span></div>
+
+    <a href="{{ url_for('new_room') }}" class="random-link">Create a random room</a>
+
+    <div class="examples">
+      <span>Try:</span>
+      <a href="/python-class">/python-class</a>
+      <a href="/interview">/interview</a>
+      <a href="/demo">/demo</a>
+    </div>
+  </div>
+
+  <footer class="home-footer">Built with Flask, Flask-SocketIO &amp; Monaco Editor</footer>
+
+  <script>
+    const form = document.getElementById('room-form');
+    const input = document.getElementById('room-input');
+    const pattern = /^[a-zA-Z0-9_-]{1,50}$/;
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const value = input.value.trim();
+      if (!pattern.test(value)) {
+        input.classList.add('invalid');
+        input.focus();
+        return;
+      }
+      window.location.href = '/' + encodeURIComponent(value);
+    });
+
+    input.addEventListener('input', () => input.classList.remove('invalid'));
+  </script>
+</body>
+</html>
