@@ -2,7 +2,6 @@ import os
 import re
 import random
 import string
-import sqlite3
 from datetime import datetime
 
 from flask import Flask, render_template, redirect, url_for, abort, request, jsonify
@@ -13,7 +12,8 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "codeshare-dev-secret-ke
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rooms.db")
+# In-memory storage for rooms (replaces SQLite for Vercel)
+rooms_data = {}
 ROOM_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,50}$")
 
 DEFAULT_CODE = {
@@ -27,33 +27,11 @@ DEFAULT_CODE = {
     "sql": '-- Welcome to CodeShare!\nSELECT "Hello, World!" AS greeting;\n',
 }
 
+
 VALID_LANGUAGES = set(DEFAULT_CODE.keys())
 
 # In-memory tracking of connected users per room: {room_name: {sid: user_label}}
 room_users = {}
-
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    conn = get_db()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS rooms (
-            name TEXT PRIMARY KEY,
-            code TEXT NOT NULL,
-            language TEXT NOT NULL DEFAULT 'python',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
 
 
 def is_valid_room_name(name):
@@ -61,58 +39,60 @@ def is_valid_room_name(name):
 
 
 def get_room(name):
-    conn = get_db()
-    row = conn.execute("SELECT * FROM rooms WHERE name = ?", (name,)).fetchone()
-    conn.close()
-    return row
+    """Return room dict or None."""
+    return rooms_data.get(name)
 
 
 def create_room(name, language="python"):
     now = datetime.utcnow().isoformat()
-    conn = get_db()
-    conn.execute(
-        "INSERT INTO rooms (name, code, language, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        (name, DEFAULT_CODE.get(language, DEFAULT_CODE["python"]), language, now, now),
-    )
-    conn.commit()
-    conn.close()
+    rooms_data[name] = {
+        "name": name,
+        "code": DEFAULT_CODE.get(language, DEFAULT_CODE["python"]),
+        "language": language,
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 def update_room_code(name, code):
     now = datetime.utcnow().isoformat()
-    conn = get_db()
-    conn.execute("UPDATE rooms SET code = ?, updated_at = ? WHERE name = ?", (code, now, name))
-    conn.commit()
-    conn.close()
+    room = rooms_data.get(name)
+    if room is None:
+        return False
+    room["code"] = code
+    room["updated_at"] = now
+    return True
 
 
 def update_room_language(name, language):
     now = datetime.utcnow().isoformat()
-    conn = get_db()
-    conn.execute("UPDATE rooms SET language = ?, updated_at = ? WHERE name = ?", (language, now, name))
-    conn.commit()
-    conn.close()
+    room = rooms_data.get(name)
+    if room is None:
+        return False
+    room["language"] = language
+    room["updated_at"] = now
+    return True
 
 
 def random_room_name():
     while True:
         name = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        if not get_room(name):
+        if name not in rooms_data:
             return name
 
 
 def clone_room(old_name, new_name):
-    room = get_room(old_name)
+    room = rooms_data.get(old_name)
     if not room:
         return False
     now = datetime.utcnow().isoformat()
-    conn = get_db()
-    conn.execute(
-        "INSERT INTO rooms (name, code, language, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        (new_name, room["code"], room["language"], now, now),
-    )
-    conn.commit()
-    conn.close()
+    rooms_data[new_name] = {
+        "name": new_name,
+        "code": room.get("code", DEFAULT_CODE.get(room.get("language", "python"))),
+        "language": room.get("language", "python"),
+        "created_at": now,
+        "updated_at": now,
+    }
     return True
 
 
@@ -269,8 +249,6 @@ def handle_disconnect():
             if count == 0:
                 del room_users[room_name]
 
-
-init_db()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
