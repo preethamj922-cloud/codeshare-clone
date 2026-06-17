@@ -1,6 +1,7 @@
 import os
 import re
 import random
+import sqlite3
 import string
 from datetime import datetime
 
@@ -12,7 +13,9 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "codeshare-dev-secret-ke
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-# In-memory storage for rooms (replaces SQLite for Vercel)
+DB_PATH = os.path.join(os.path.dirname(__file__), "rooms.db")
+
+# In-memory cache for rooms backed by SQLite persistence
 rooms_data = {}
 ROOM_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,50}$")
 
@@ -38,6 +41,56 @@ def is_valid_room_name(name):
     return bool(name) and bool(ROOM_NAME_PATTERN.match(name))
 
 
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db_connection()
+    with conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rooms (
+                name TEXT PRIMARY KEY,
+                code TEXT NOT NULL,
+                language TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+    conn.close()
+
+
+def load_rooms_from_db():
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT name, code, language, created_at, updated_at FROM rooms"
+    ).fetchall()
+    conn.close()
+
+    for row in rows:
+        rooms_data[row["name"]] = {
+            "name": row["name"],
+            "code": row["code"],
+            "language": row["language"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+
+def save_room(room):
+    conn = get_db_connection()
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO rooms (name, code, language, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (room["name"], room["code"], room["language"], room["created_at"], room["updated_at"]),
+        )
+    conn.close()
+
+
 def get_room(name):
     """Return room dict or None."""
     return rooms_data.get(name)
@@ -45,13 +98,15 @@ def get_room(name):
 
 def create_room(name, language="python"):
     now = datetime.utcnow().isoformat()
-    rooms_data[name] = {
+    room = {
         "name": name,
         "code": DEFAULT_CODE.get(language, DEFAULT_CODE["python"]),
         "language": language,
         "created_at": now,
         "updated_at": now,
     }
+    rooms_data[name] = room
+    save_room(room)
 
 
 def update_room_code(name, code):
@@ -61,6 +116,7 @@ def update_room_code(name, code):
         return False
     room["code"] = code
     room["updated_at"] = now
+    save_room(room)
     return True
 
 
@@ -71,6 +127,7 @@ def update_room_language(name, language):
         return False
     room["language"] = language
     room["updated_at"] = now
+    save_room(room)
     return True
 
 
@@ -86,13 +143,15 @@ def clone_room(old_name, new_name):
     if not room:
         return False
     now = datetime.utcnow().isoformat()
-    rooms_data[new_name] = {
+    new_room = {
         "name": new_name,
         "code": room.get("code", DEFAULT_CODE.get(room.get("language", "python"))),
         "language": room.get("language", "python"),
         "created_at": now,
         "updated_at": now,
     }
+    rooms_data[new_name] = new_room
+    save_room(new_room)
     return True
 
 

@@ -162,6 +162,12 @@ body {
 
 #editor-container { flex: 1; min-height: 0; }
 
+@media (max-width: 960px) {
+  #editor-container {
+    min-height: 60vh;
+  }
+}
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -257,6 +263,80 @@ body {
   border-radius: 10px;
   outline: none;
   font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .editor-body {
+    overflow: auto;
+  }
+
+  .editor-layout {
+    display: block;
+    padding: 12px 12px 18px;
+  }
+
+  .chat-sidebar {
+    min-width: auto;
+    width: 100%;
+    max-height: none;
+    margin-top: 12px;
+  }
+
+  .topbar-left,
+  .topbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .topbar-left {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar-center {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 10px 12px;
+  }
+
+  .brand {
+    font-size: 14px;
+  }
+
+  .room-name {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .topbar-right {
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .chat-form {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 16px;
+  }
+
+  .chat-form input,
+  .chat-form button {
+    width: 100%;
+  }
+
+  .chat-header h2 {
+    font-size: 13px;
+  }
 }
 
 .chat-form button {

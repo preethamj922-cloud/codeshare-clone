@@ -30,7 +30,6 @@ const statusText    = document.getElementById("status-text");
 const userCountNum  = document.getElementById("user-count-num");
 const languageSelect = document.getElementById("language-select");
 const copyLinkBtn      = document.getElementById("copy-link-btn");
-const customizeLinkBtn = document.getElementById("customize-link-btn");
 const customizeRoomBtn = document.getElementById("customize-room-btn");
 const downloadBtn      = document.getElementById("download-btn");
 const chatMessages     = document.getElementById("chat-messages");
@@ -224,41 +223,37 @@ function initControls() {
     });
   }
 
-  if (customizeLinkBtn) {
-    customizeLinkBtn.addEventListener("click", async () => {
-      const newRoom = prompt("Enter a custom room name for the share link:", ROOM_NAME);
-      if (!newRoom) return;
-      const trimmed = newRoom.trim();
-      if (!/^[a-zA-Z0-9_-]{1,50}$/.test(trimmed)) {
-        showToast("Room name must use letters, numbers, hyphens or underscores.");
-        return;
-      }
-      if (trimmed === ROOM_NAME) {
-        showToast("This room name is already in use.");
-        return;
-      }
+  async function handleCustomizeRoom() {
+    const newRoom = prompt("Enter a custom room name for the share link:", ROOM_NAME);
+    if (!newRoom) return;
+    const trimmed = newRoom.trim();
+    if (!/^[a-zA-Z0-9_-]{1,50}$/.test(trimmed)) {
+      showToast("Room name must use letters, numbers, hyphens or underscores.");
+      return;
+    }
+    if (trimmed === ROOM_NAME) {
+      showToast("This room name is already in use.");
+      return;
+    }
 
-      const response = await fetch("/customize-room", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ old_room: ROOM_NAME, new_room: trimmed }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        showToast("Custom link created. Redirecting...");
-        window.location.href = `/${encodeURIComponent(result.new_room)}`;
-      } else {
-        const error = await response.json().catch(() => ({}));
-        showToast(error.error || "Could not customize link.");
-      }
+    const response = await fetch("/customize-room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_room: ROOM_NAME, new_room: trimmed }),
     });
+
+    if (response.ok) {
+      const result = await response.json();
+      showToast("Custom link created. Redirecting...");
+      window.location.href = `/${encodeURIComponent(result.new_room)}`;
+    } else {
+      const error = await response.json().catch(() => ({}));
+      showToast(error.error || "Could not customize link.");
+    }
   }
 
   if (customizeRoomBtn) {
-    customizeRoomBtn.addEventListener("click", () => {
-      customizeLinkBtn?.click();
-    });
+    customizeRoomBtn.addEventListener("click", handleCustomizeRoom);
   }
 
   if (downloadBtn) {
